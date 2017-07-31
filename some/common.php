@@ -289,3 +289,206 @@ function get_age_by_id_card($idCard)
     //strtotime加上这个年数后得到那日的时间戳后与今日的时间戳相比
     return strtotime(substr($idCard, 6, 8) . ' +' . $diff . 'years') > $today ? ($diff + 1) : $diff;
 }
+
+/**
+ * 递归读取文件夹的文件列表
+ *
+ * 读取的目录路径可以是相对路径, 也可以是绝对路径, $file_type 为指定读取的文件后缀, 不设置则读取文件夹内所有的文件
+ *
+ * @param  string
+ * @param  string
+ * @return array
+ */
+function fetch_file_lists($dir, $file_type = null)
+{
+	if ($file_type)
+	{
+		if (substr($file_type, 0, 1) == '.')
+		{
+			$file_type = substr($file_type, 1);
+		}
+	}
+
+	$base_dir = realpath($dir);
+	$dir_handle = opendir($base_dir);
+
+	$files_list = array();
+
+	while (($file = readdir($dir_handle)) !== false)
+	{
+		if (substr($file, 0, 1) != '.' AND !is_dir($base_dir . '/' . $file))
+		{
+			if (($file_type AND H::get_file_ext($file, false) == $file_type) OR !$file_type)
+			{
+				$files_list[] = $base_dir . '/' . $file;
+			}
+		}
+		else if (substr($file, 0, 1) != '.' AND is_dir($base_dir . '/' . $file))
+		{
+			if ($sub_dir_lists = fetch_file_lists($base_dir . '/' . $file, $file_type))
+			{
+				$files_list = array_merge($files_list, $sub_dir_lists);
+			}
+		}
+	}
+
+	return $files_list;
+}
+
+/**
+ * 判断是否是合格的手机客户端
+ *
+ * @return boolean
+ */
+function is_mobile($ignore_cookie = false)
+{
+	if (HTTP::get_cookie('_ignore_ua_check') == 'TRUE' AND !$ignore_cookie)
+	{
+		return false;
+	}
+
+	$user_agent = strtolower($_SERVER['HTTP_USER_AGENT']);
+
+	if (preg_match('/playstation/i', $user_agent) OR preg_match('/ipad/i', $user_agent) OR preg_match('/ucweb/i', $user_agent))
+	{
+		return false;
+	}
+
+	if (preg_match('/iemobile/i', $user_agent) OR preg_match('/mobile\ssafari/i', $user_agent) OR preg_match('/iphone\sos/i', $user_agent) OR preg_match('/android/i', $user_agent) OR preg_match('/symbian/i', $user_agent) OR preg_match('/series40/i', $user_agent))
+	{
+		return true;
+	}
+
+	return false;
+}
+
+
+/**
+ * 时间友好型提示风格化（即微博中的XXX小时前、昨天等等）
+ *
+ * 即微博中的 XXX 小时前、昨天等等, 时间超过 $time_limit 后返回按 out_format 的设定风格化时间戳
+ *
+ * @param  int
+ * @param  int
+ * @param  string
+ * @param  array
+ * @param  int
+ * @return string
+ */
+function date_friendly($timestamp, $time_limit = 604800, $out_format = 'Y-m-d H:i', $formats = null, $time_now = null)
+{
+	if (get_setting('time_style') == 'N')
+	{
+		return date($out_format, $timestamp);
+	}
+
+	if (!$timestamp)
+	{
+		return false;
+	}
+
+	if ($formats == null)
+	{
+		$formats = array('YEAR' => AWS_APP::lang()->_t('%s 年前'), 'MONTH' => AWS_APP::lang()->_t('%s 月前'), 'DAY' => AWS_APP::lang()->_t('%s 天前'), 'HOUR' => AWS_APP::lang()->_t('%s 小时前'), 'MINUTE' => AWS_APP::lang()->_t('%s 分钟前'), 'SECOND' => AWS_APP::lang()->_t('%s 秒前'));
+	}
+
+	$time_now = $time_now == null ? time() : $time_now;
+	$seconds = $time_now - $timestamp;
+
+	if ($seconds == 0)
+	{
+		$seconds = 1;
+	}
+
+	if (!$time_limit OR $seconds > $time_limit)
+	{
+		return date($out_format, $timestamp);
+	}
+
+	$minutes = floor($seconds / 60);
+	$hours = floor($minutes / 60);
+	$days = floor($hours / 24);
+	$months = floor($days / 30);
+	$years = floor($months / 12);
+
+	if ($years > 0)
+	{
+		$diffFormat = 'YEAR';
+	}
+	else
+	{
+		if ($months > 0)
+		{
+			$diffFormat = 'MONTH';
+		}
+		else
+		{
+			if ($days > 0)
+			{
+				$diffFormat = 'DAY';
+			}
+			else
+			{
+				if ($hours > 0)
+				{
+					$diffFormat = 'HOUR';
+				}
+				else
+				{
+					$diffFormat = ($minutes > 0) ? 'MINUTE' : 'SECOND';
+				}
+			}
+		}
+	}
+
+	$dateDiff = null;
+
+	switch ($diffFormat)
+	{
+		case 'YEAR' :
+			$dateDiff = sprintf($formats[$diffFormat], $years);
+			break;
+		case 'MONTH' :
+			$dateDiff = sprintf($formats[$diffFormat], $months);
+			break;
+		case 'DAY' :
+			$dateDiff = sprintf($formats[$diffFormat], $days);
+			break;
+		case 'HOUR' :
+			$dateDiff = sprintf($formats[$diffFormat], $hours);
+			break;
+		case 'MINUTE' :
+			$dateDiff = sprintf($formats[$diffFormat], $minutes);
+			break;
+		case 'SECOND' :
+			$dateDiff = sprintf($formats[$diffFormat], $seconds);
+			break;
+	}
+
+	return $dateDiff;
+}
+/**
+ * 递归创建目录
+ *
+ * 与 mkdir 不同之处在于支持一次性多级创建, 比如 /dir/sub/dir/
+ *
+ * @param  string
+ * @param  int
+ * @return boolean
+ */
+function make_dir($dir, $permission = 0777)
+{
+	$dir = rtrim($dir, '/') . '/';
+
+	if (is_dir($dir))
+	{
+		return TRUE;
+	}
+
+	if (! make_dir(dirname($dir), $permission))
+	{
+		return FALSE;
+	}
+
+	return @mkdir($dir, $permission);
+}
