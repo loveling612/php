@@ -195,3 +195,97 @@ function curl_get_contents($url, $timeout = 10, $data = array())
 
     return $result;
 }
+/**
+ * 下载文件
+ * @author Red
+ * @date 2016年12月12日17:08:56
+ * @param $file
+ */
+function download_file($file)
+{
+    $file = str_replace('\\', '/', realpath(dirname(dirname(dirname((dirname(__FILE__)))) . '/'))) . $file;
+    if (is_file($file)) {
+        header("Content-Type: application/force-download");
+        header("Content-Disposition: attachment; filename=" . basename($file));
+        readfile($file);
+        exit;
+    } else {
+        echo "文件不存在！";
+        echo '<span><a href="javascript:history.go(-1);">◂返回上一步</a></span>';
+        exit;
+    }
+}
+/**
+ * 16进制转字符串
+ * @author Red
+ * @date 2016年12月23日11:24:41
+ * @param $hex
+ * @return string
+ */
+function hex2str($hex)
+{
+    $str = '';
+    $arr = str_split($hex, 2);
+    foreach ($arr as $bit) {
+        $str .= chr(hexdec($bit));
+    }
+
+    return $str;
+}
+
+/**
+ * 字符串转16进制
+ * @author Red
+ * @date 2016年12月23日11:24:41
+ * @param $str
+ * @return string
+ */
+function str2hex($str)
+{
+    $hex = '';
+    for ($i = 0, $length = mb_strlen($str); $i < $length; $i++) {
+        $hex .= dechex(ord($str{$i}));
+    }
+
+    return $hex;
+}
+
+/**
+ * 时间距离
+ * @author Red
+ * @date 2016年11月14日16:49:32
+ * @param $endTime
+ * @param int $starTime
+ * @return string
+ */
+function get_deadline($endTime, $starTime = 0,$line=false)
+{
+    //计算天数
+    $timeDiff = $endTime - ($starTime ? $starTime : time());
+    $days     = intval($timeDiff / 86400);
+    //计算小时数
+    $remain = $timeDiff % 86400;
+    $hours  = intval($remain / 3600);
+    //计算分钟数
+    $remain = $remain % 3600;
+    $mins   = intval($remain / 60);
+    if($line){
+        return $days . "-" . $hours . "-" . $mins . "-";
+    }
+    return $days . "天" . $hours . "小时" . $mins . "分钟";
+}
+/**
+ * 根据身份证号码算出年龄
+ * @author Red
+ * @date 2016年12月26日11:37:39
+ * @param $idCard
+ * @return float
+ */
+function get_age_by_id_card($idCard)
+{
+    $date  = strtotime(substr($idCard, 6, 8));//获得出生年月日的时间戳
+    $today = strtotime('today');//获得今日的时间戳
+    $diff  = floor(($today - $date) / 86400 / 365);//得到两个日期相差的大体年数
+    //strtotime加上这个年数后得到那日的时间戳后与今日的时间戳相比
+    return strtotime(substr($idCard, 6, 8) . ' +' . $diff . 'years') > $today ? ($diff + 1) : $diff;
+}
